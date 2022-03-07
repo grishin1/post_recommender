@@ -2,7 +2,7 @@ import argparse
 import pkg_resources
 
 from pandas import DataFrame, read_csv
-from .recommender.functions import *
+from wemoney_recommender.recommender.functions import *
 
 
 def sort_for_user_date() -> DataFrame:
@@ -100,5 +100,15 @@ def sort_for_user_date() -> DataFrame:
     return out
 
 
+def main() -> None:
+    parser = argparse.ArgumentParser(description='Sort user posts')
+    parser.add_argument('uid', type=str, nargs=1, help='user_id as string')
+    parser.add_argument('-c', '--categories', action='store_true', help='If used user interests are combined in broader categories')
+    args = parser.parse_args()
+    print(args.uid)
+    print(args.categories)
+    return None
+
+
 if __name__ == '__main__':
-    sort_for_user_date()
+    main()
