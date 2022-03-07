@@ -2,7 +2,7 @@ from importlib.metadata import entry_points
 from setuptools import find_packages, setup
 
 
-with open('requirements.tx', 'rt') as f:
+with open('requirements.txt', 'rt') as f:
     required_packages = f.read().split()
 
 setup(
@@ -23,8 +23,9 @@ setup(
     'testing': []
     },
     entry_points={'console_scripts': [
-        'sort_posts: wemoney_recommender:main.main'
-    ]}
+        'sort_posts = wemoney_recommender.main:main'
+    ]
+    }
 
 
 
