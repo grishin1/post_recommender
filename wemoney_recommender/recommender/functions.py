@@ -6,81 +6,7 @@ from sklearn.metrics import jaccard_score
 from typing import List
 
 
-dfu = pd.read_csv("./data/users.csv", parse_dates=['dob'], infer_datetime_format=True)
-dfi = pd.read_csv("./data/interest.csv")
-dfp = pd.read_csv("./data/posts.csv", parse_dates=['post_time'], infer_datetime_format=True)
-dfp.hashtags = dfp.hashtags.str.lower()
-
-
-def extract_post_hashtags(tags: str) -> List[str]:
-    res1 =  re.subn(r".*[[]|[]].*|[']|\s+", '', tags)[0]
-    if res1.find(',') < 0:
-        return res1.lower().split(';')
-    else:
-        return res1.lower().split(',')
-
-
-all_tags = []
-for t in dfp.hashtags.apply(extract_post_hashtags):
-    all_tags.extend(t)
-
-
-all_tags = set(all_tags)
-
-
-all_n_replies = dfp.groupby('post_id')['post_id'].agg(lambda x: (x.item() == dfp.parent_id).sum())
-all_n_replies.name = 'n_replies'
-
-def get_n_replies(_id: str, _df: pd.DataFrame) -> int:
-    return _df.parent_id.eq(_id).sum()
-
-
-post_age = (pd.Timestamp.now() - dfp.set_index('post_id').post_time).dt.days
-post_age.name = 'post_age'
-
-
-def trim_unicodes(_str: str) -> str:
-    return ''.join([l for l in list(_str) if l.isascii()]).strip()
-
-
-interest_list = dfi.groupby('interest').agg(list)
-interest_list.index = interest_list.index.to_series().apply(lambda x: trim_unicodes(x).lower())
-
-cols = interest_list.index.tolist()
-user_matrix = pd.DataFrame(columns=['uid'] + cols)
-for ind, val in enumerate(dfi.uid.unique()):
-    for interest in cols:
-        user_matrix.loc[ind, 'uid'] = val
-        if val in interest_list.loc[interest, 'uid']:
-            user_matrix.loc[ind, interest] = 1
-        else:
-            user_matrix.loc[ind, interest] = 0
-
-
-# Hashtags enrichment. Finding words in post that match existing hashtags:
-empty_ids = dfp.index[dfp.hashtags == "[]"]
-tags_from_post_text = dict.fromkeys(empty_ids, None)
-tag_list = list(all_tags)
-tag_list.remove('')
-
-
-for tag in tag_list:
-    res1 = dfp.text.str.lower().str.find(tag)
-    for idx in res1.index[res1 > -1]:
-        if idx in empty_ids:
-            if tags_from_post_text[idx] is None:
-                tags_from_post_text[idx] = [tag]
-            else:
-                tags_from_post_text[idx].extend([tag])
-
-for idx, val in tags_from_post_text.items():
-    if val is None:
-        dfp.loc[idx, 'hashtags'] = "['other']"
-    else:
-        dfp.loc[idx, 'hashtags'] = str(val)
-
-
-interests_to_categories_map = {
+INTERESTS_TO_CATEGORIES_MAP = {
     'Reducing spending': 'saving',
     'See my spending habits': 'saving',
     'General budgeting': 'saving',
@@ -110,10 +36,10 @@ interests_to_categories_map = {
     'ETFS': 'investing'
 }
 
-interests_to_categories_map = {k.lower(): v for k, v in interests_to_categories_map.items()}
+INTERESTS_TO_CATEGORIES_MAP = {k.lower(): v for k, v in INTERESTS_TO_CATEGORIES_MAP.items()}
 
 
-tags_to_interests_map = {
+TAGS_TO_INTERESTS_MAP = {
     '24yearsold': 'lifestyle',
     'financialfreedom': 'lifestyle',
     'financialindependance': 'lifestyle',
@@ -148,39 +74,20 @@ tags_to_interests_map = {
 }
 
 
-categories_list = dfi.groupby('interest').agg(list)
-categories_list.index = categories_list.index.to_series().apply(lambda x: trim_unicodes(x).lower())
-categories_list['category'] = categories_list.index.map(interests_to_categories_map)
-categories_list = categories_list.groupby('category').agg(lambda x: list(set(chain.from_iterable(x))))
+def extract_post_hashtags(tags: str) -> List[str]:
+    res1 =  re.subn(r".*[[]|[]].*|[']|\s+", '', tags)[0]
+    if res1.find(',') < 0:
+        return res1.lower().split(';')
+    else:
+        return res1.lower().split(',')
 
 
-cat_cols = categories_list.index.unique().tolist()
-user_cat_matrix = pd.DataFrame(columns=['uid'] + cat_cols)
-
-for ind, val in enumerate(dfi.uid.unique()):
-    for cat in cat_cols:
-        user_cat_matrix.loc[ind, 'uid'] = val
-        if val in categories_list.loc[cat, 'uid']:
-            user_cat_matrix.loc[ind, cat] = 1
-        else:
-            user_cat_matrix.loc[ind, cat] = 0
+def get_n_replies(_id: str, _df: pd.DataFrame) -> int:
+    return _df.parent_id.eq(_id).sum()
 
 
-posts_cat_list = dfp.loc[:, ['post_id', 'hashtags']]
-posts_cat_list['category'] = posts_cat_list.hashtags.apply(lambda x: list(set([tags_to_interests_map[el] for el in extract_post_hashtags(x)])))
-posts_cat_list = posts_cat_list.explode('category')
-posts_cat_list = posts_cat_list.groupby('category')['post_id'].agg(list).to_frame()
-
-# Will re-user cat_cols:
-posts_cat_matrix = pd.DataFrame(columns=['post_id'] + cat_cols)
-
-for ind, val in enumerate(dfp.post_id.unique()):
-    for cat in cat_cols:
-        posts_cat_matrix.loc[ind, 'post_id'] = val
-        if val in posts_cat_list.loc[cat, 'post_id']:
-            posts_cat_matrix.loc[ind, cat] = 1
-        else:
-            posts_cat_matrix.loc[ind, cat] = 0
+def trim_unicodes(_str: str) -> str:
+    return ''.join([l for l in list(_str) if l.isascii()]).strip()
 
 
 def one_vs_rest_jaccard(_id: str, col_name: str, _df: pd.DataFrame) -> pd.Series:
@@ -200,10 +107,6 @@ def user_vs_post_jaccard(uid: str, _udf: pd.DataFrame, _pdf: pd.DataFrame) -> pd
     return res.sort_values('jaccard', ascending=False)['jaccard']
 
 
-post_age_ranks = post_age.sort_values().rank(method='min')
-
-raw_replies_ranks = all_n_replies.sort_values(ascending=False).rank(method='min', ascending=False)
-
 def posts_ranks_by_user_interests(uid: str, ucm: pd.DataFrame, pcm: pd.DataFrame) -> pd.Series:
     similarity = user_vs_post_jaccard(uid, ucm, pcm)
     return similarity.rank(method='dense', ascending=False)
@@ -219,20 +122,21 @@ def posts_ranks_from_similar_users(uid: str, um: pd.DataFrame, ucm: pd.DataFrame
     return ranks
 
 
-def get_last_reply_recency_rank(post_id: str, _dfp: pd.DataFrame) -> int:
+def get_last_reply_recency_rank(post_id: str, par: pd.Series, _dfp: pd.DataFrame) -> int:
     if get_n_replies(post_id, _dfp) > 0:
         last_reply_id = _dfp[(_dfp.parent_id == post_id)].sort_values('post_time')['post_id'].iat[-1]
     else:
         last_reply_id = post_id
-    return post_age_ranks[last_reply_id]
+    return par[last_reply_id]
 
 
-def get_non_pesonalised_rating_matrix() -> pd.DataFrame:
-    par = post_age_ranks.copy()
+def get_non_pesonalised_rating_matrix(par: pd.Series, rrr: pd.Series, _dfp: pd.DataFrame) -> pd.DataFrame:
+    # rrr -- raw replies ranks
+    par = par.copy()
     par.name = 'recency_rank'
-    raw = raw_replies_ranks
+    raw = rrr.copy()
     raw.name = 'n_replies_rank'
-    rep = par.index.to_series().apply(get_last_reply_recency_rank, args=(dfp,))
+    rep = par.index.to_series().apply(get_last_reply_recency_rank, args=(par, _dfp))
     out = pd.merge(par, raw, how='left', left_index=True, right_index=True)
     out = pd.merge(out, rep, how='left', left_index=True, right_index=True)
     out.rename(columns={'post_id': 'reply_recency_rank'}, inplace=True)
@@ -248,8 +152,8 @@ def get_personalised_rating_matrix(uid: str, um: pd.DataFrame, ucm: pd.DataFrame
     return out
 
 
-def get_rating_matrix(uid, um, ucm, pcm, _dfp, *, use_categories=False):
-    mx1 = get_non_pesonalised_rating_matrix()
+def get_rating_matrix(uid, um, ucm, pcm, _dfp, par, rrr, *, use_categories=False):
+    mx1 = get_non_pesonalised_rating_matrix(par, rrr, _dfp)
     mx2 = get_personalised_rating_matrix(uid, um, ucm, pcm, _dfp, use_categories=use_categories)
     out = pd.merge(mx1, mx2, how='left', left_index=True, right_index=True)
     out['total_rank'] = out.apply(np.mean, axis=1)
@@ -257,8 +161,8 @@ def get_rating_matrix(uid, um, ucm, pcm, _dfp, *, use_categories=False):
     return out
 
 
-def sort_posts_for_user(uid: str, um, ucm, pcm, _dfp, *, use_categories=False) -> pd.DataFrame:
-    mx = get_rating_matrix(uid, um, ucm, pcm, _dfp, use_categories=use_categories)
+def sort_posts_for_user(uid: str, um, ucm, pcm, par, rrr, _dfp, *, use_categories=False) -> pd.DataFrame:
+    mx = get_rating_matrix(uid, um, ucm, pcm, _dfp, par, rrr, use_categories=use_categories)
     mx.sort_values('total_rank', inplace=True) #just in case
     sorted_ids = mx.index
     out = _dfp.copy().set_index('post_id').loc[sorted_ids]
