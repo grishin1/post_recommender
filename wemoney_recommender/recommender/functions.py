@@ -232,7 +232,7 @@ def get_non_pesonalised_rating_matrix() -> pd.DataFrame:
     par.name = 'recency_rank'
     raw = raw_replies_ranks
     raw.name = 'n_replies_rank'
-    rep = par.index.to_series().apply(get_last_reply_rank, args=(dfp,))
+    rep = par.index.to_series().apply(get_last_reply_recency_rank, args=(dfp,))
     out = pd.merge(par, raw, how='left', left_index=True, right_index=True)
     out = pd.merge(out, rep, how='left', left_index=True, right_index=True)
     out.rename(columns={'post_id': 'reply_recency_rank'}, inplace=True)
