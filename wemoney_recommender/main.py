@@ -6,6 +6,17 @@ from pandas import DataFrame, read_csv
 from wemoney_recommender.recommender.functions import *
 
 def sort_for_user_date(uid: str, dt: str=None, *, use_categories=False) -> DataFrame:
+    """Sort posts for a given user and (optionally) cut-off date.
+
+    Args:
+        uid (str): User ID, as found in uid field from users or interests CSV file
+        dt (str, optional): Cutoff date string of YYYY-MM-DD format.
+            Limits recommendations to posts not older than the cutoff date. Defaults to None.
+        use_categories (bool, optional): When True, user interests are combined into broader categories. Defaults to False.
+
+    Returns:
+        DataFrame: Sorted dataframe of user's posts
+    """
     # Loading data:
     pth = pkg_resources.resource_filename("wemoney_recommender", "data")
     dfu = read_csv(pth + "/users.csv", parse_dates=['dob'], infer_datetime_format=True)
