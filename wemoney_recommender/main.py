@@ -105,11 +105,14 @@ def sort_for_user_date(uid: str, dt: str=None, *, use_categories=False) -> DataF
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Sort user posts')
-    parser.add_argument('uid', type=str, nargs=1, help='user_id as string')
+    parser.add_argument('uid', type=str, nargs=1, help='User ID,  uid field from users or interests CSV file')
+    parser.add_argument('-d', '--date', type=str, default=None, nargs=1, help='Subset for posts not older than this cutoff date (YYYY-MM-DD)')
     parser.add_argument('-c', '--categories', action='store_true', help='If used user interests are combined in broader categories')
+
     args = parser.parse_args()
-    print(args.uid)
-    print(args.categories)
+
+    sorted_posts = sort_for_user_date(args.uid, args.date, use_categories=args.categories)
+    print(sorted_posts)
     return None
 
 
