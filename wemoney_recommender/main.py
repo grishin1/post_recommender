@@ -1,11 +1,11 @@
 import argparse
 import pkg_resources
 
+from datetime import datetime
 from pandas import DataFrame, read_csv
 from wemoney_recommender.recommender.functions import *
 
-
-def sort_for_user_date() -> DataFrame:
+def sort_for_user_date(uid: str, dt: str=None, *, use_categories=False) -> DataFrame:
     # Loading data:
     pth = pkg_resources.resource_filename("wemoney_recommender", "data")
     dfu = read_csv(pth + "/users.csv", parse_dates=['dob'], infer_datetime_format=True)
@@ -13,6 +13,9 @@ def sort_for_user_date() -> DataFrame:
     dfp = read_csv(pth + "/posts.csv", parse_dates=['post_time'], infer_datetime_format=True)
     dfp.hashtags = dfp.hashtags.str.lower()
 
+    if dt is not None:
+        CUTOFF_DATE = datetime.strptime(dt, "%Y-%m-%d")
+        dfp = dfp[dfp.post_time <= CUTOFF_DATE]
 
     all_tags = []
     for t in dfp.hashtags.apply(extract_post_hashtags):
@@ -95,7 +98,7 @@ def sort_for_user_date() -> DataFrame:
     post_age_ranks = post_age.sort_values().rank(method='min')
     raw_replies_ranks = all_n_replies.sort_values(ascending=False).rank(method='min', ascending=False)
 
-    out = sort_posts_for_user('7e4cb900-a09e-4d1d-8b65-ecd3ef51f132', user_matrix, user_cat_matrix, posts_cat_matrix, post_age_ranks, raw_replies_ranks, dfp)
+    out = sort_posts_for_user(uid, user_matrix, user_cat_matrix, posts_cat_matrix, post_age_ranks, raw_replies_ranks, dfp, use_categories=use_categories)
 
     return out
 
